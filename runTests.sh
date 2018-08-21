@@ -7,7 +7,11 @@ function failure() {
   exit 1
 }
 
-mkdir playground 2&> /dev/null
+rm -Rfv playground
+mkdir -p playground/folder
+echo "Hello world!" > playground/folder/hello.md
+
+mkdir playground 2> /dev/null
 cd playground
 
 # Clear the field
