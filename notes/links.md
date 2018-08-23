@@ -3,7 +3,8 @@ Collections of links to related topics.
 # Git
 
 - [Why store sha1 as binary?](https://docs.gitlab.com/ee/development/sha1_as_binary.html)
-- [Tree explained](https://stackoverflow.com/questions/14790681/what-is-the-internal-format-of-a-git-tree-object)
+- [Tree Explained](https://stackoverflow.com/questions/14790681/what-is-the-internal-format-of-a-git-tree-object)
+- [Rewrite History with Reflog](https://www.atlassian.com/git/tutorials/rewriting-history/git-reflog)
 
 # Node
 
