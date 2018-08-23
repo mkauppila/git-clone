@@ -8,10 +8,10 @@ function failure() {
 }
 
 rm -Rfv playground
-mkdir -p playground/folder
+mkdir -p playground 2> /dev/null
+mkdir -p playground/folder 2> /dev/null
 echo "Hello world!" > playground/folder/hello.md
 
-mkdir playground 2> /dev/null
 cd playground
 
 # Clear the field
