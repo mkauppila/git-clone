@@ -27,4 +27,8 @@ export function executeInit() {
        precomposeunicode = true
   `
   fs.writeFileSync(`${process.cwd()}/.git/config`, contents, { encoding: 'utf-8'} )
+
+  // HEAD is also required a for working git repo
+  const head = 'ref: refs/heads/master'
+  fs.writeFileSync(`${process.cwd()}/.git/HEAD`, head, { encoding: 'utf-8' })
 }
