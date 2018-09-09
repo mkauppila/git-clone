@@ -23,7 +23,7 @@ rm -Rfv .git
 
 # Verify `add` command
 .././src/index.ts add folder/hello.md
-[[ "git cat-file -p cd0875583aabe89ee197ea133980a9085d08e497" == "Hello world!" ]] && failure 'git add failed'
+[[ $(git cat-file -p cd0875583aabe89ee197ea133980a9085d08e497) == "Hello world!" ]] || failure 'git add failed: blob'
 
 echo ""
 echo "All tests run succesfully."
