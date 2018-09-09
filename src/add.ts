@@ -8,69 +8,58 @@ const fs = {
   readFile: util.promisify(fsNode.readFile),
   mkdir: util.promisify(fsNode.mkdir),
   writeFile: util.promisify(fsNode.writeFile),
+  exists: util.promisify(fsNode.exists)
 }
+
+type GitObjectType = 'blob' | 'tree'
 
 interface TreeObject {
   hash: string
   name: string
   permissons: string
-  type: 'blob' | 'tree'
-  deflatedSize: number
+  type: GitObjectType
+}
+
+async function writeObject(hash: string, data: Buffer): Promise<void> {
+  const directoryName = hash.slice(0, 2)
+  const fileName = hash.slice(2, hash.length)
+  await fs.mkdir(`./.git/objects/${directoryName}`)
+  await fs.writeFile(`./.git/objects/${directoryName}/${fileName}`, data)
+}
+
+function hashBuffer(data: Buffer): string {
+  const sha = crypto.createHash('sha1')
+  sha.update(data)
+  return sha.digest('hex')
+}
+
+function asGitObject(type: GitObjectType, data: Buffer) {
+  return Buffer.concat([Buffer.from(`${type} ${data.length}\0`), data])
 }
 
 async function writeBlob(filePath: string): Promise<TreeObject> {
-  const dataBuffer = await fs.readFile(filePath) // TODO add error handling
-  const data = dataBuffer.toString()
-  const header = `blob ${data.length}\0`
-  const blob = header + data
-
-  const sha = crypto.createHash('sha1')
-  sha.update(blob)
-  const hexDigest = sha.digest('hex')
-
-  const directoryName = hexDigest.slice(0, 2)
-  const fileName = hexDigest.slice(2, hexDigest.length)
-
-  const deflatedBlob = zlib.deflateSync(Buffer.from(blob, 'utf-8'))
-  const defaultPermissions = '100644'
-
-  await fs.mkdir(`./.git/objects/${directoryName}`)
-  await fs.writeFile(`./.git/objects/${directoryName}/${fileName}`, deflatedBlob)
+  const data = await fs.readFile(filePath) // TODO add error handling
+  const object = asGitObject('blob', data)
+  const hash = hashBuffer(object)
+  writeObject(hash, zlib.deflateSync(object))
 
   return {
-    hash: hexDigest,
+    hash: hash,
     name: path.posix.basename(filePath),
-    permissons: defaultPermissions,
+    permissons: '100644',
     type: 'blob',
-    deflatedSize: deflatedBlob.byteLength
   }
 }
 
 async function writeTree(name: string, to: TreeObject) {
   const data = Buffer.concat([
-    Buffer.from(to.permissons), // VERIFY: the format, why string?
-    Buffer.from(' '),
-    Buffer.from(to.name, 'utf-8'),
-    Buffer.from('\0'),
+    // VERIFY: the permissions/mode format, why string?
+    Buffer.from(`${to.permissons} ${to.name}\0`),
     Buffer.from(to.hash, 'hex'),
   ])
 
-  const blob = Buffer.concat([
-    Buffer.from(`tree ${data.byteLength.toString()}\0`),
-    Buffer.from(data),
-  ])
-
-  const sha = crypto.createHash('sha1')
-  sha.update(blob)
-  const hexDigest = sha.digest('hex')
-
-  const deflatedBlob = zlib.deflateSync(blob)
-
-  const directoryName = hexDigest.slice(0, 2)
-  const fileName = hexDigest.slice(2, hexDigest.length)
-
-  await fs.mkdir(`./.git/objects/${directoryName}`)
-  await fs.writeFile(`./.git/objects/${directoryName}/${fileName}`, deflatedBlob)
+  const blob = asGitObject('tree', data)
+  writeObject(hashBuffer(blob), zlib.deflateSync(blob))
 }
 
 export async function executeAdd(filePath: string): Promise<void> {
