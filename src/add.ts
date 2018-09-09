@@ -38,7 +38,7 @@ function asGitObject(type: GitObjectType, data: Buffer) {
 }
 
 async function writeBlob(filePath: string): Promise<TreeObject> {
-  const data = await fs.readFile(filePath) // TODO add error handling
+  const data = await fs.readFile(filePath) // TODO: add error handling
   const object = asGitObject('blob', data)
   const hash = hashBuffer(object)
   writeObject(hash, zlib.deflateSync(object))
@@ -63,7 +63,6 @@ async function writeTree(name: string, to: TreeObject) {
 }
 
 export async function executeAdd(filePath: string): Promise<void> {
-  const segments = filePath.split(path.sep)
-  const treeObject = await writeBlob(filePath)
-  writeTree(segments[1], treeObject)
+  // TODO: support directories (loop it through and add all)
+  await writeBlob(filePath)
 }
