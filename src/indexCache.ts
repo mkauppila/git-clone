@@ -1,5 +1,4 @@
 import fs from './fs'
-import { stat } from 'fs';
 
 function dateToSeconds(date: Date): number {
   return date.getTime() * 1000
@@ -47,6 +46,11 @@ function sanitizeMode(mode: number): number {
     // VERIFY: directory is not needed? They're not handled by the index anyway?
   }
 
+  const ownerExecution = 0b1000000
+  const groupExecution = 0b1000
+  const othersExecution = 0b1
+
+  const permissions = mode & 0o777
   const type = mode >> 12
   switch (type) {
     case ObjectType.symlink:
@@ -54,7 +58,8 @@ function sanitizeMode(mode: number): number {
       return (type << 12) + 0
     case ObjectType.file:
     default:
-      return (type << 12) + 0o644 // or 0o755 if has execution rights
+      const executionable = permissions & (ownerExecution & groupExecution & othersExecution)
+      return (type << 12) + (executionable > 0 ? 0o755 : 0o644)
   }
 }
 
