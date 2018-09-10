@@ -36,6 +36,7 @@ async function writeBlob(filePath: string) {
   const hash = hashBuffer(object)
   writeObject(hash, zlib.deflateSync(object))
 
+  await addBlobToIndex(filePath, hash)
 }
 
 async function writeTree(name: string, to: TreeObject) {
