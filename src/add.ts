@@ -1,15 +1,21 @@
-import * as path from 'path'
 import * as crypto from 'crypto'
 import * as zlib from 'zlib'
-import { addBlobToIndex } from './indexCache';
 import fs from './fs'
 
+import { addBlobToIndex } from './indexCache'
+import { readFilesRecursively } from './files'
+
 type GitObjectType = 'blob' | 'tree'
+
+interface PathHash {
+  path: string
+  hash: string
+}
 
 interface TreeObject {
   hash: string
   name: string
-  permissons: string
+  permissions: string
   type: GitObjectType
 }
 
@@ -30,19 +36,21 @@ function asGitObject(type: GitObjectType, data: Buffer) {
   return Buffer.concat([Buffer.from(`${type} ${data.length}\0`), data])
 }
 
-async function writeBlob(filePath: string) {
-  const data = await fs.readFile(filePath) // TODO: add error handling
+async function writeBlob(path: string): Promise<PathHash> {
+  const data = await fs.readFile(path) // TODO: add error handling
   const object = asGitObject('blob', data)
   const hash = hashBuffer(object)
   writeObject(hash, zlib.deflateSync(object))
-
-  await addBlobToIndex(filePath, hash)
+  return {
+    path,
+    hash,
+  }
 }
 
 async function writeTree(name: string, to: TreeObject) {
   const data = Buffer.concat([
     // VERIFY: the permissions/mode format, why string?
-    Buffer.from(`${to.permissons} ${to.name}\0`),
+    Buffer.from(`${to.permissions} ${to.name}\0`),
     Buffer.from(to.hash, 'hex'),
   ])
 
@@ -50,7 +58,23 @@ async function writeTree(name: string, to: TreeObject) {
   writeObject(hashBuffer(blob), zlib.deflateSync(blob))
 }
 
-export async function executeAdd(filePath: string): Promise<void> {
-  // TODO: support directories (loop it through and add all)
-  await writeBlob(filePath)
+async function fullPathsForFiles(path: string): Promise<string[]> {
+  const stat = await fs.lstat(path)
+  if (stat.isFile()) {
+    return [path]
+  } else if (stat.isDirectory()) {
+    return readFilesRecursively(path)
+  } else {
+    // TODO: error on anything else
+    return []
+  }
+}
+
+export async function executeAdd(path: string): Promise<void> {
+  const paths = await fullPathsForFiles(path)
+  for (const path of paths) {
+    const { path: blobPath, hash } = await writeBlob(path)
+    addBlobToIndex(blobPath, hash)
+  }
+  // TODO: UpdateIndexCacheFile()
 }
