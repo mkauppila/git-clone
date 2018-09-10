@@ -1,15 +1,8 @@
-import * as fsNode from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
 import * as zlib from 'zlib'
-import * as util from 'util'
-
-const fs = {
-  readFile: util.promisify(fsNode.readFile),
-  mkdir: util.promisify(fsNode.mkdir),
-  writeFile: util.promisify(fsNode.writeFile),
-  exists: util.promisify(fsNode.exists)
-}
+import { addBlobToIndex } from './indexCache';
+import fs from './fs'
 
 type GitObjectType = 'blob' | 'tree'
 
@@ -37,18 +30,12 @@ function asGitObject(type: GitObjectType, data: Buffer) {
   return Buffer.concat([Buffer.from(`${type} ${data.length}\0`), data])
 }
 
-async function writeBlob(filePath: string): Promise<TreeObject> {
+async function writeBlob(filePath: string) {
   const data = await fs.readFile(filePath) // TODO: add error handling
   const object = asGitObject('blob', data)
   const hash = hashBuffer(object)
   writeObject(hash, zlib.deflateSync(object))
 
-  return {
-    hash: hash,
-    name: path.posix.basename(filePath),
-    permissons: '100644',
-    type: 'blob',
-  }
 }
 
 async function writeTree(name: string, to: TreeObject) {
