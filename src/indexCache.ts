@@ -1,23 +1,5 @@
 import fs from './fs'
 
-function dateToSeconds(date: Date): number {
-  return date.getTime() * 1000
-}
-
-function asBinaryString(value: number): string {
-  let str = ''
-  do {
-    if (value % 2 === 0) {
-      str = str + '0'
-    } else {
-      str = str + '1'
-    }
-    value = Math.floor(value / 2)
-  } while (value > 0)
-
-  return str
-}
-
 function sanitizeMode(mode: number): number {
   // http://man7.org/linux/man-pages/man7/inode.7.html
   // See section titled: `The file type and mode`
@@ -89,12 +71,51 @@ export async function addBlobToIndex(
 
   const maxUint32 = 2 ** 32
 
-  const other = Buffer.alloc(12)
-  c = other.writeInt32BE(stats.dev, 0)
-  c = other.writeInt32BE(stats.ino % maxUint32, c)
-  c = other.writeInt32BE(sanitizeMode(stats.mode % maxUint32), c)
+  const info = Buffer.alloc(4 * 6)
+  c = info.writeInt32BE(stats.dev, 0)
+  c = info.writeInt32BE(stats.ino % maxUint32, c)
+  c = info.writeInt32BE(sanitizeMode(stats.mode % maxUint32), c)
+  c = info.writeInt32BE(stats.uid, c)
+  c = info.writeInt32BE(stats.gid, c)
+  c = info.writeInt32BE(stats.size > maxUint32 ? maxUint32 : stats.size, c)
 
-  const body = Buffer.concat([ctime, mtime, other])
+  const sha = Buffer.from(hash, 'hex')
 
-  await fs.writeFile(`./.git/index`, Buffer.concat([header, body]))
+  const flags = Buffer.alloc(2)
+  const nameLenght = filePath.length > 0xFFF ? 0xFFF : filePath.length
+  // TODO: needs some TLC when adding support for merges
+  flags.writeInt16BE((0x0000 & (0b1 << 15)) + (nameLenght % 0o7777) , 0)
+
+  // Entry path name (variable length) relative to top level directory
+  // (without leading slash). '/' is used as path separator. The special
+  // path components ".", ".." and ".git" (without quotes) are disallowed.
+  // Trailing slash is also disallowed.
+  //
+  // The exact encoding is undefined, but the '.' and '/' characters
+  // are encoded in 7-bit ASCII and the encoding cannot contain a NUL
+  // byte (iow, this is a UNIX pathname).
+  const fileName = Buffer.from(filePath, 'utf-8')
+
+  const body = Buffer.concat([ctime, mtime, info, sha, flags, fileName])
+
+  // 1-8 nul bytes as necessary to pad the entry to a multiple of eight bytes
+  // while keeping the name NUL-terminated.
+  const extraBytes = (Math.ceil((body.length + 1) / 8) * 8) - body.length
+  const padding = Buffer.alloc(extraBytes)
+
+  const paddedBody = Buffer.concat([body, padding])
+  const indexSha = Buffer.from(hashBuffer(paddedBody), 'hex')
+
+  const index = Buffer.concat([header, paddedBody, indexSha])
+
+  await fs.writeFile(`./.git/index`, index)
+}
+
+// TODO: lift to utils
+import * as crypto from 'crypto'
+
+function hashBuffer(data: Buffer): string {
+  const sha = crypto.createHash('sha1')
+  sha.update(data)
+  return sha.digest('hex')
 }
