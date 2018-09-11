@@ -2,7 +2,10 @@ import * as crypto from 'crypto'
 import * as zlib from 'zlib'
 import fs from './fs'
 
-import { addBlobToIndex } from './indexCache'
+import {
+  updateIndexCacheFile,
+  addBlobToIndex
+} from './indexCache'
 import { readFilesRecursively } from './files'
 
 type GitObjectType = 'blob' | 'tree'
@@ -76,5 +79,5 @@ export async function executeAdd(path: string): Promise<void> {
     const { path: blobPath, hash } = await writeBlob(path)
     addBlobToIndex(blobPath, hash)
   }
-  // TODO: UpdateIndexCacheFile()
+  updateIndexCacheFile()
 }
