@@ -135,7 +135,6 @@ export async function readIndexFile() {
   try {
     file = await fs.readFile('./.git/index')
   } catch (error) {
-    console.log('no index file yet')
     return
   }
 
@@ -152,50 +151,20 @@ export async function readIndexFile() {
   }
   const version = file.readInt32BE(4)
   if (version !== 2) {
-    // Only version 2 is supported
+    // FAIL: Only version 2 is supported
   }
   const blobCount = file.readInt32BE(8)
-  console.log('blob count', blobCount)
 
-  let readBlobs = []
   let c = 12
+  let readBlobs = []
   for (let blobIndex = 0; blobIndex < blobCount; blobIndex++) {
-    const cTimeSeconds = file.readInt32BE(c)
-    c += 4
-    const cTimeNanoseconds = file.readInt32BE(c)
-    c += 4
-    console.log(cTimeSeconds)
-    console.log(cTimeNanoseconds)
-
-    const mTimeSeconds = file.readInt32BE(c)
-    c += 4
-    const mTimeNanoseconds = file.readInt32BE(c)
-    c += 4
-    console.log(mTimeSeconds)
-    console.log(mTimeNanoseconds)
-
-    // stats
-    const dev = file.readInt32BE(c)
-    c += 4
-    const ino = file.readInt32BE(c)
-    c += 4
-    const mode = file.readInt32BE(c)
-    c += 4
-    const uid = file.readInt32BE(c)
-    c += 4
-    const gid = file.readInt32BE(c)
-    c += 4
-    const size = file.readInt32BE(c)
-    c += 4
-
+    // We only need to read the SHA and file path for an entry
+    // from the index file. All the other information can be reproduced by
+    // lstat when writing the entries to the index file
+    c += 40
     const sha = file.buffer.slice(c, c + 20)
-    console.log('sha', Buffer.from(sha))
-
-    c += 20
-
-    const flags = file.readInt16BE(c)
-    c += 2
-    console.log('flags ', flags)
+    const hash = Buffer.from(sha)
+    c += 22
 
     let filePathLenght = 0
     while (file.readInt8(c + filePathLenght) !== 0) {
@@ -203,15 +172,13 @@ export async function readIndexFile() {
     }
     const filePathRawArray = file.buffer.slice(c, c + filePathLenght)
     const filePath = decoder.decode(filePathRawArray)
-    console.log(filePath)
     c += filePathLenght
 
-    // eat the padding
+    // Consume the nul bytes used to pad the element in
+    // order to make it align  by 8
     while (file.readInt8(c) === 0) {
       c++
     }
-
-    const hash = Buffer.from(sha)
 
     readBlobs.push({ filePath, hash })
   }
