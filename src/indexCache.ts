@@ -44,17 +44,17 @@ function sanitizeMode(mode: number): number {
   }
 }
 
-interface BlobInfo {
+interface EntryInfo {
   filePath: string
   hash: Buffer
 }
-let blobs: BlobInfo[] = []
+let entries: EntryInfo[] = []
 
-export function addBlobToIndex(
+export function addEntryToIndexCache(
   filePath: string,
   hash: string
 ): void {
-  blobs.push({ filePath, hash: Buffer.from(hash, 'hex') })
+  entries.push({ filePath, hash: Buffer.from(hash, 'hex') })
 }
 
 export async function updateIndexCacheFile(): Promise<void> {
@@ -62,9 +62,9 @@ export async function updateIndexCacheFile(): Promise<void> {
   let c = 0
   c = header.write('DIRC', c, 4, 'ascii')
   c = header.writeInt32BE(2, c) // index version
-  c = header.writeInt32BE(blobs.length, c) // File count
+  c = header.writeInt32BE(entries.length, c)
 
-  const contentBuffers = blobs
+  const contentBuffers = entries
     // FIXME: sort order should not use local!
     //
     // Index entries are sorted in ascending order on the name field,
@@ -118,9 +118,7 @@ export async function updateIndexCacheFile(): Promise<void> {
       // 1-8 nul bytes as necessary to pad the entry to a multiple of eight bytes
       // while keeping the name NUL-terminated.
       const extraBytes = (Math.ceil((body.length + 1) / 8) * 8) - body.length
-      const paddedBody = Buffer.concat([body, Buffer.alloc(extraBytes)])
-
-      return paddedBody
+      return Buffer.concat([body, Buffer.alloc(extraBytes)])
     })
 
   const body = Buffer.concat([header, Buffer.concat(contentBuffers)])
@@ -130,7 +128,7 @@ export async function updateIndexCacheFile(): Promise<void> {
   await fs.writeFile(`./.git/index`, index)
 }
 
-export async function readIndexFile() {
+export async function readIndexCacheFile() {
   let file
   try {
     file = await fs.readFile('./.git/index')
@@ -153,36 +151,35 @@ export async function readIndexFile() {
   if (version !== 2) {
     // FAIL: Only version 2 is supported
   }
-  const blobCount = file.readInt32BE(8)
+  const entryCount = file.readInt32BE(8)
 
   let c = 12
-  let readBlobs = []
-  for (let blobIndex = 0; blobIndex < blobCount; blobIndex++) {
+  let readEntries = []
+  for (let entryIndex = 0; entryIndex < entryCount; entryIndex++) {
     // We only need to read the SHA and file path for an entry
     // from the index file. All the other information can be reproduced by
     // lstat when writing the entries to the index file
     c += 40
     const sha = file.buffer.slice(c, c + 20)
     const hash = Buffer.from(sha)
-    c += 22
 
-    let filePathLenght = 0
-    while (file.readInt8(c + filePathLenght) !== 0) {
-      filePathLenght++
+    c += 22
+    let filePathLength = 0
+    while (file.readInt8(c + filePathLength) !== 0) {
+      filePathLength++
     }
-    const filePathRawArray = file.buffer.slice(c, c + filePathLenght)
-    const filePath = decoder.decode(filePathRawArray)
-    c += filePathLenght
+    const filePath = decoder.decode(file.buffer.slice(c, c + filePathLength))
+    c += filePathLength
 
     // Consume the nul bytes used to pad the element in
-    // order to make it align  by 8
+    // order to make it align by 8
     while (file.readInt8(c) === 0) {
       c++
     }
 
-    readBlobs.push({ filePath, hash })
+    readEntries.push({ filePath, hash })
   }
-  blobs = readBlobs
+  entries = readEntries
 }
 
 // TODO: lift to utils

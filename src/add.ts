@@ -4,8 +4,8 @@ import fs from './fs'
 
 import {
   updateIndexCacheFile,
-  addBlobToIndex,
-  readIndexFile
+  addEntryToIndexCache,
+  readIndexCacheFile
 } from './indexCache'
 import { readFilesRecursively } from './files'
 
@@ -75,11 +75,11 @@ async function fullPathsForFiles(path: string): Promise<string[]> {
 }
 
 export async function executeAdd(path: string): Promise<void> {
-  await readIndexFile()
+  await readIndexCacheFile()
   const paths = await fullPathsForFiles(path)
   for (const path of paths) {
     const { path: blobPath, hash } = await writeBlob(path)
-    addBlobToIndex(blobPath, hash)
+    addEntryToIndexCache(blobPath, hash)
   }
   updateIndexCacheFile()
 }
