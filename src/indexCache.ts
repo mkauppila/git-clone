@@ -39,9 +39,8 @@ function sanitizeMode(mode: number): number {
       const ownerExecution = 0b1000000
       const groupExecution = 0b1000
       const othersExecution = 0b1
-
       const executionable = permissions & (ownerExecution & groupExecution & othersExecution)
-      return (type << 12) + (executionable > 0 ? 0o755 : 0o644)
+      return (ObjectType.file << 12) + (executionable > 0 ? 0o755 : 0o644)
   }
 }
 
