@@ -46,15 +46,15 @@ function sanitizeMode(mode: number): number {
 
 interface BlobInfo {
   filePath: string
-  hash: string
+  hash: Buffer
 }
-const blobs: BlobInfo[] = []
+let blobs: BlobInfo[] = []
 
 export function addBlobToIndex(
   filePath: string,
   hash: string
 ): void {
-  blobs.push({ filePath, hash })
+  blobs.push({ filePath, hash: Buffer.from(hash, 'hex') })
 }
 
 export async function updateIndexCacheFile(): Promise<void> {
@@ -65,14 +65,14 @@ export async function updateIndexCacheFile(): Promise<void> {
   c = header.writeInt32BE(blobs.length, c) // File count
 
   const contentBuffers = blobs
-    // TODO Fix the sort order
+    // FIXME: sort order should not use local!
     //
     // Index entries are sorted in ascending order on the name field,
     // interpreted as a string of unsigned bytes (i.e. memcmp() order, no
     // localization, no special casing of directory separator '/'). Entries
     // with the same name are sorted by their stage field.
     // (https://github.com/git/git/blob/master/Documentation/technical/index-format.txt)
-    .sort()
+    .sort((a, b) => a.filePath.localeCompare(b.filePath))
     .map(({ filePath, hash }) => {
       const stats = fsNode.lstatSync(filePath)
 
@@ -98,8 +98,6 @@ export async function updateIndexCacheFile(): Promise<void> {
       c = info.writeInt32BE(stats.gid, c)
       c = info.writeInt32BE(stats.size > maxUint32 ? maxUint32 : stats.size, c)
 
-      const sha = Buffer.from(hash, 'hex')
-
       const flags = Buffer.alloc(2)
       const nameLenght = filePath.length > 0xFFF ? 0xFFF : filePath.length
       // TODO: needs some TLC when adding support for merges
@@ -115,7 +113,7 @@ export async function updateIndexCacheFile(): Promise<void> {
       // byte (iow, this is a UNIX pathname).
       const fileName = Buffer.from(filePath, 'utf-8')
 
-      const body = Buffer.concat([ctime, mtime, info, sha, flags, fileName])
+      const body = Buffer.concat([ctime, mtime, info, hash, flags, fileName])
 
       // 1-8 nul bytes as necessary to pad the entry to a multiple of eight bytes
       // while keeping the name NUL-terminated.
@@ -133,7 +131,13 @@ export async function updateIndexCacheFile(): Promise<void> {
 }
 
 export async function readIndexFile() {
-  const file = await fs.readFile('./.git/index')
+  let file
+  try {
+    file = await fs.readFile('./.git/index')
+  } catch (error) {
+    console.log('no index file yet')
+    return
+  }
 
   const hash = Buffer.from(file.buffer.slice(file.length - 20))
   const computedHash = hashBufferNoEncoding(Buffer.from(file.buffer.slice(0, file.length - 20)))
@@ -193,20 +197,25 @@ export async function readIndexFile() {
     c += 2
     console.log('flags ', flags)
 
-    let nameLenght = 0
-    while (file.readInt8(c + nameLenght) !== 0) {
-      nameLenght++
+    let filePathLenght = 0
+    while (file.readInt8(c + filePathLenght) !== 0) {
+      filePathLenght++
     }
-    const nameRawArray = file.buffer.slice(c, c + nameLenght)
-    const name = decoder.decode(nameRawArray)
-    console.log(name)
-    c += nameLenght
+    const filePathRawArray = file.buffer.slice(c, c + filePathLenght)
+    const filePath = decoder.decode(filePathRawArray)
+    console.log(filePath)
+    c += filePathLenght
 
     // eat the padding
     while (file.readInt8(c) === 0) {
       c++
     }
+
+    const hash = Buffer.from(sha)
+
+    readBlobs.push({ filePath, hash })
   }
+  blobs = readBlobs
 }
 
 // TODO: lift to utils
