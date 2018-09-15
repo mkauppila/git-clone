@@ -132,8 +132,92 @@ export async function updateIndexCacheFile(): Promise<void> {
   await fs.writeFile(`./.git/index`, index)
 }
 
+export async function readIndexFile() {
+  const file = await fs.readFile('./.git/index')
+
+  const hash = Buffer.from(file.buffer.slice(file.length - 20))
+  const computedHash = hashBufferNoEncoding(Buffer.from(file.buffer.slice(0, file.length - 20)))
+  if (!hash.equals(computedHash)) {
+    // FAIL: Evil index file! Hashes don't match!
+  }
+
+  const decoder = new TextDecoder()
+  const marker = decoder.decode(file.buffer.slice(0, 4))
+  if (marker !== 'DIRC') {
+    // FAIL: evil index file!
+  }
+  const version = file.readInt32BE(4)
+  if (version !== 2) {
+    // Only version 2 is supported
+  }
+  const blobCount = file.readInt32BE(8)
+  console.log('blob count', blobCount)
+
+  let readBlobs = []
+  let c = 12
+  for (let blobIndex = 0; blobIndex < blobCount; blobIndex++) {
+    const cTimeSeconds = file.readInt32BE(c)
+    c += 4
+    const cTimeNanoseconds = file.readInt32BE(c)
+    c += 4
+    console.log(cTimeSeconds)
+    console.log(cTimeNanoseconds)
+
+    const mTimeSeconds = file.readInt32BE(c)
+    c += 4
+    const mTimeNanoseconds = file.readInt32BE(c)
+    c += 4
+    console.log(mTimeSeconds)
+    console.log(mTimeNanoseconds)
+
+    // stats
+    const dev = file.readInt32BE(c)
+    c += 4
+    const ino = file.readInt32BE(c)
+    c += 4
+    const mode = file.readInt32BE(c)
+    c += 4
+    const uid = file.readInt32BE(c)
+    c += 4
+    const gid = file.readInt32BE(c)
+    c += 4
+    const size = file.readInt32BE(c)
+    c += 4
+
+    const sha = file.buffer.slice(c, c + 20)
+    console.log('sha', Buffer.from(sha))
+
+    c += 20
+
+    const flags = file.readInt16BE(c)
+    c += 2
+    console.log('flags ', flags)
+
+    let nameLenght = 0
+    while (file.readInt8(c + nameLenght) !== 0) {
+      nameLenght++
+    }
+    const nameRawArray = file.buffer.slice(c, c + nameLenght)
+    const name = decoder.decode(nameRawArray)
+    console.log(name)
+    c += nameLenght
+
+    // eat the padding
+    while (file.readInt8(c) === 0) {
+      c++
+    }
+  }
+}
+
 // TODO: lift to utils
 import * as crypto from 'crypto'
+import { TextDecoder } from 'util';
+
+function hashBufferNoEncoding(data: Buffer): Buffer {
+  const sha = crypto.createHash('sha1')
+  sha.update(data)
+  return sha.digest()
+}
 
 function hashBuffer(data: Buffer): string {
   const sha = crypto.createHash('sha1')
