@@ -2,6 +2,7 @@
 
 import { executeInit } from './init'
 import { executeAdd } from './add'
+import { executeCommit } from './commit'
 
 const [, , ...args] = process.argv
 
@@ -13,6 +14,8 @@ const main = async () => {
   } else if (command === 'add') {
     const filePath = args[1]
     await executeAdd(filePath)
+  } else if (command === 'commit') {
+    await executeCommit()
   } else {
     console.log(`${args[0]} is not a command`)
   }
