@@ -6,7 +6,7 @@ import { executeCommit } from './commit'
 
 const [, , ...args] = process.argv
 
-const main = async () => {
+;(async () => {
   const command = args[0]
   if (command === 'init') {
     console.log('execute init')
@@ -19,6 +19,4 @@ const main = async () => {
   } else {
     console.log(`${args[0]} is not a command`)
   }
-}
-
-main()
+})()
