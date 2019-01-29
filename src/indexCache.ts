@@ -44,10 +44,11 @@ function sanitizeMode(mode: number): number {
   }
 }
 
-interface EntryInfo {
+export interface EntryInfo {
   filePath: string
   hash: Buffer
 }
+
 let entries: EntryInfo[] = []
 
 export function addEntryToIndexCache(
@@ -55,6 +56,11 @@ export function addEntryToIndexCache(
   hash: string
 ): void {
   entries.push({ filePath, hash: Buffer.from(hash, 'hex') })
+}
+
+export async function getEntries(): Promise<EntryInfo[]> {
+  await readIndexCacheFile()
+  return entries
 }
 
 export async function updateIndexCacheFile(): Promise<void> {

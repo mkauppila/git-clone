@@ -1,26 +1,22 @@
 import * as crypto from 'crypto'
 import * as zlib from 'zlib'
 import fs from './fs'
+import * as path from 'path'
 
 import {
   updateIndexCacheFile,
   addEntryToIndexCache,
-  readIndexCacheFile
+  readIndexCacheFile,
+  EntryInfo
 } from './indexCache'
 import { readFilesRecursively } from './files'
 
 type GitObjectType = 'blob' | 'tree'
+export type Hash = string
 
 interface PathHash {
   path: string
-  hash: string
-}
-
-interface TreeObject {
-  hash: string
-  name: string
-  permissions: string
-  type: GitObjectType
+  hash: Hash
 }
 
 async function writeObject(hash: string, data: Buffer): Promise<void> {
@@ -51,15 +47,16 @@ async function writeBlob(path: string): Promise<PathHash> {
   }
 }
 
-async function writeTree(name: string, to: TreeObject) {
-  const data = Buffer.concat([
-    // VERIFY: the permissions/mode format, why string?
-    Buffer.from(`${to.permissions} ${to.name}\0`),
-    Buffer.from(to.hash, 'hex'),
-  ])
-
+export async function writeTree(entries: EntryInfo[]): Promise<Hash> {
+  const data = Buffer.concat(
+    entries.map(to => Buffer.concat([
+      Buffer.from(`100644 ${path.basename(to.filePath)}\0`),
+      to.hash
+    ]))
+  )
   const blob = asGitObject('tree', data)
-  writeObject(hashBuffer(blob), zlib.deflateSync(blob))
+  const hash = hashBuffer(blob)
+  return hash
 }
 
 async function fullPathsForFiles(path: string): Promise<string[]> {
